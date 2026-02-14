@@ -1,0 +1,391 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>❤️</title>
+  <style>
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin:0;
+      background:#0b0b10;
+      color:#fff;
+      overflow-x:hidden;
+    }
+
+    /* Intro screen */
+    .intro{
+      position: fixed;
+      inset: 0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:24px;
+      z-index: 1000;
+      background:#0b0b10;
+    }
+    .intro h1{
+      font-size: 34px;
+      margin: 0 0 10px;
+      line-height: 1.1;
+    }
+    .intro p{
+      margin: 0 0 18px;
+      opacity: .85;
+      font-weight: 700;
+    }
+    .startBtn{
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: none;
+      background:#ff4da6;
+      color:#fff;
+      font-weight: 900;
+      font-size: 16px;
+      cursor:pointer;
+    }
+    .tiny{
+      margin-top: 12px;
+      opacity: .7;
+      font-size: 12px;
+      max-width: 520px;
+    }
+
+    /* Main app */
+    .wrap{
+      max-width: 950px;
+      margin:auto;
+      padding:24px;
+      text-align:center;
+      position:relative;
+      z-index:2;
+      display:none; /* hidden until Start pressed */
+    }
+    h2{ font-size:22px; margin:0 0 6px; }
+    p{ opacity:.85; margin:0 0 16px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+    }
+    @media (min-width:700px){
+      .grid{ grid-template-columns: repeat(5, 1fr); }
+    }
+
+    .card{
+      border-radius:14px;
+      overflow:hidden;
+      cursor:pointer;
+      border:2px solid rgba(255,255,255,.12);
+      position:relative;
+      background: rgba(255,255,255,.03);
+    }
+    .card img{
+      width:100%;
+      height:150px;
+      object-fit:cover;
+      display:block;
+    }
+    .card.selected{
+      border-color: hotpink;
+      box-shadow: inset 0 0 0 3px rgba(255,105,180,.30);
+    }
+    .check{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:42px;
+      background: rgba(0,0,0,.35);
+      opacity:0;
+      transition:.15s;
+    }
+    .card.selected .check{ opacity:1; }
+
+    button{
+      padding:12px 18px;
+      font-size:16px;
+      font-weight:900;
+      border-radius:12px;
+      border:none;
+      cursor:pointer;
+    }
+    .unlockBtn{
+      margin-top:18px;
+      background:#ff4da6;
+      color:#fff;
+    }
+    .unlockBtn:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .reveal{
+      display:none;
+      margin-top:28px;
+    }
+    .reveal img{
+      width:min(520px, 95vw);
+      border-radius:18px;
+      border:2px solid rgba(255,255,255,.12);
+    }
+
+    .afterReveal{ display:none; margin-top:14px; }
+    .btnRow{
+      display:flex;
+      gap:12px;
+      justify-content:center;
+      align-items:center;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+    .btnYes{ background:#ff4da6; color:#fff; }
+    .btnNo{ background:#222; color:#fff; position:relative; }
+
+    .status{
+      display:none;
+      margin-top:18px;
+      font-weight:900;
+      opacity:.9;
+    }
+
+    /* Fullscreen confetti canvas */
+    #confettiCanvas{
+      position:fixed;
+      inset:0;
+      z-index:999;
+      pointer-events:none;
+      display:none;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="confettiCanvas"></canvas>
+
+<!-- Intro screen: ensures music starts from beginning BEFORE anything else -->
+<div class="intro" id="intro">
+  <h1>Hey 😌</h1>
+  <p>Tap to start (don’t mute it 👀)</p>
+  <button class="startBtn" id="startBtn">Start ❤️</button>
+  <div class="tiny">
+    (Browsers require a tap/click before they allow music. This makes sure your song starts from 0:00.)
+  </div>
+</div>
+
+<div class="wrap" id="app">
+  <h2>Click all the pictures of a mirror (and your bf) 😌</h2>
+  <p id="counter">0 / 10 selected</p>
+
+  <div id="grid" class="grid"></div>
+
+  <button id="unlock" class="unlockBtn" disabled>Unlock ❤️</button>
+
+  <div class="reveal" id="reveal">
+    <img src="photos/valentine.jpeg" alt="Valentine">
+    <div class="afterReveal" id="afterReveal">
+      <div class="btnRow">
+        <button class="btnYes" id="yesBtn">Yes ❤️</button>
+        <button class="btnNo" id="noBtn">No 🙄</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Put your chosen song as photos/music.mp3 -->
+<audio id="bgm" src="photos/music.mp3" loop></audio>
+
+<script>
+  // ====== FILES ======
+  const photos = [
+    "photos/1.jpeg","photos/2.jpeg","photos/3.jpeg","photos/4.jpeg","photos/5.jpeg",
+    "photos/6.jpeg","photos/7.jpeg","photos/8.jpeg","photos/9.jpeg","photos/10.jpeg"
+  ];
+
+  const intro = document.getElementById("intro");
+  const startBtn = document.getElementById("startBtn");
+
+  const grid = document.getElementById("grid");
+  const unlock = document.getElementById("unlock");
+  const counter = document.getElementById("counter");
+  const reveal = document.getElementById("reveal");
+  const afterReveal = document.getElementById("afterReveal");
+  const yesBtn = document.getElementById("yesBtn");
+  const noBtn = document.getElementById("noBtn");
+  const status = document.getElementById("status");
+  const app = document.getElementById("app");
+
+  const bgm = document.getElementById("bgm");
+  const selected = new Set();
+
+  function updateUI(){
+    counter.textContent = `${selected.size} / ${photos.length} selected`;
+    unlock.disabled = selected.size !== photos.length;
+  }
+
+  async function startMusicFromBeginning(){
+    try{
+      bgm.pause();
+      bgm.currentTime = 0;
+      await bgm.play();
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  // Start: music begins at 0:00, THEN game appears
+  startBtn.addEventListener("click", async () => {
+    const ok = await startMusicFromBeginning();
+    // Even if blocked for some reason, we still proceed; usually this works because click is a gesture.
+    intro.style.display = "none";
+    app.style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // Build photo grid
+  photos.forEach(src => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<img src="${src}" alt=""><div class="check">✓</div>`;
+    card.addEventListener("click", () => {
+      if (selected.has(src)){
+        selected.delete(src);
+        card.classList.remove("selected");
+      } else {
+        selected.add(src);
+        card.classList.add("selected");
+      }
+      updateUI();
+    });
+    grid.appendChild(card);
+  });
+
+  unlock.addEventListener("click", () => {
+    grid.style.display = "none";
+    unlock.style.display = "none";
+    counter.style.display = "none";
+
+    reveal.style.display = "block";
+    afterReveal.style.display = "block";
+
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  });
+
+  // NO button runs away
+  function moveNoButton(){
+    const maxX = Math.min(window.innerWidth - 160, 520);
+    const maxY = Math.min(window.innerHeight - 220, 340);
+    const x = Math.floor(Math.random()*maxX) - (maxX/2);
+    const y = Math.floor(Math.random()*maxY) - (maxY/2);
+    noBtn.style.transform = `translate(${x}px, ${y}px)`;
+  }
+  noBtn.addEventListener("mouseenter", moveNoButton);
+  noBtn.addEventListener("click", moveNoButton);
+  noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveNoButton(); }, {passive:false});
+
+  // YES -> fake delay -> fresh new screen + confetti
+  yesBtn.addEventListener("click", async () => {
+    yesBtn.disabled = true;
+    noBtn.disabled = true;
+
+    status.style.display = "block";
+    status.textContent = "Hmm… I’ll think about it 🤨";
+    await new Promise(r => setTimeout(r, 2000));
+
+    status.textContent = "Okay fine… you win 😤";
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Fresh new screen (replace the whole app)
+    app.innerHTML = `
+      <div style="
+        height:100vh;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+        padding:24px;
+      ">
+        <div style="font-size:52px; font-weight:950; line-height:1.1;">
+          Happy Valentine’s Day Pattu Baby ❤️
+        </div>
+        <div style="margin-top:10px; opacity:.85; font-weight:800;">
+          Thanks for accepting 😌
+        </div>
+      </div>
+    `;
+
+    startConfetti(7000);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  updateUI();
+
+  // ====== CONFETTI ======
+  const canvas = document.getElementById("confettiCanvas");
+  const ctx = canvas.getContext("2d");
+
+  function resizeCanvas(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  function startConfetti(durationMs){
+    canvas.style.display = "block";
+
+    const pieces = Array.from({length: 240}, () => ({
+      x: Math.random()*canvas.width,
+      y: -20 - Math.random()*canvas.height,
+      w: 6 + Math.random()*10,
+      h: 6 + Math.random()*12,
+      vy: 2 + Math.random()*5,
+      vx: (Math.random()-0.5)*1.8,
+      rot: Math.random()*Math.PI,
+      vr: (Math.random()-0.5)*0.25
+    }));
+
+    let running = true;
+
+    function draw(){
+      if (!running) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      for (const p of pieces){
+        p.y += p.vy;
+        p.x += p.vx;
+        p.rot += p.vr;
+
+        if (p.y > canvas.height + 30){
+          p.y = -20;
+          p.x = Math.random()*canvas.width;
+        }
+        if (p.x < -30) p.x = canvas.width + 30;
+        if (p.x > canvas.width + 30) p.x = -30;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = `hsl(${Math.floor(Math.random()*360)}, 80%, 60%)`;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      }
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    setTimeout(() => {
+      running = false;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      canvas.style.display = "none";
+    }, durationMs);
+  }
+</script>
+
+</body>
+</html>
